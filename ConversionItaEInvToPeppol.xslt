@@ -1,4 +1,5 @@
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" exclude-result-prefixes="xsl">
+	<xsl:param name="sourceFileName"/>
 	<xsl:output method="xml" indent="yes" encoding="UTF-8"/>
 	<xsl:decimal-format name="it" decimal-separator="." grouping-separator=","/>
 	<!-- Utility -->
@@ -24,7 +25,7 @@
 		</xsl:choose>
 	</xsl:template>
 	<!-- Template principale -->
-	<xsl:template match="/*[local-name()='FatturaElettronica']">
+	<xsl:template match="/*[local-name()='FatturaElettronica']">		
 		<xsl:variable name="body" select="/*[local-name()='FatturaElettronica']/*[local-name()='FatturaElettronicaBody']"/>
 		<xsl:variable name="hdr" select="/*[local-name()='FatturaElettronica']/*[local-name()='FatturaElettronicaHeader']"/>
 		<xsl:variable name="doc" select="$body/*[local-name()='DatiGenerali']/*[local-name()='DatiGeneraliDocumento']"/>
@@ -162,6 +163,85 @@
 					</cac:BillingReference>
 				</xsl:for-each>
 			</xsl:if>
+			<!-- Nome file fattura elettronica sorgente -->
+			<xsl:if test="normalize-space($sourceFileName) != ''">
+				<cac:AdditionalDocumentReference>
+					<cbc:ID><xsl:value-of select="$sourceFileName"/></cbc:ID>
+					<cbc:DocumentType>SourceDocument</cbc:DocumentType>
+				</cac:AdditionalDocumentReference>
+			</xsl:if>
+			<!-- Allegati -->
+			<xsl:for-each select="$body/*[local-name()='Allegati']">
+				<cac:AdditionalDocumentReference>
+					<cbc:ID>
+						<xsl:choose>
+							<xsl:when test="normalize-space(*[local-name()='NomeAttachment'])">
+								<xsl:value-of select="normalize-space(*[local-name()='NomeAttachment'])"/>
+							</xsl:when>
+							<xsl:otherwise>Attachment</xsl:otherwise>
+						</xsl:choose>
+					</cbc:ID>
+					<xsl:if test="normalize-space(*[local-name()='FormatoAttachment'])">
+						<cbc:DocumentType>
+							<xsl:value-of select="normalize-space(*[local-name()='FormatoAttachment'])"/>
+						</cbc:DocumentType>
+					</xsl:if>
+					<xsl:if test="normalize-space(*[local-name()='DescrizioneAttachment'])">
+						<cbc:DocumentDescription>
+							<xsl:value-of select="normalize-space(*[local-name()='DescrizioneAttachment'])"/>
+						</cbc:DocumentDescription>
+					</xsl:if>
+					<xsl:if test="normalize-space(*[local-name()='Attachment'])">
+						<cac:Attachment>
+							<cbc:EmbeddedDocumentBinaryObject>
+								<!-- MIME -->
+								<xsl:attribute name="mimeCode">
+									<xsl:variable name="fmt" select="translate(normalize-space(*[local-name()='FormatoAttachment']),
+                          'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')"/>
+									<xsl:choose>
+										<xsl:when test="$fmt='PDF'">application/pdf</xsl:when>
+										<xsl:when test="$fmt='XML'">application/xml</xsl:when>
+										<xsl:when test="$fmt='TXT'">text/plain</xsl:when>
+										<xsl:when test="$fmt='CSV'">text/csv</xsl:when>
+										<xsl:when test="$fmt='ZIP'">application/zip</xsl:when>
+										<xsl:when test="$fmt='PNG'">image/png</xsl:when>
+										<xsl:when test="$fmt='JPG' or $fmt='JPEG'">image/jpeg</xsl:when>
+										<xsl:otherwise>application/octet-stream</xsl:otherwise>
+									</xsl:choose>
+								</xsl:attribute>
+								<!-- FILENAME normalizzato + estensione -->
+								<xsl:if test="normalize-space(*[local-name()='NomeAttachment'])">
+									<xsl:attribute name="filename">
+										<xsl:variable name="rawName" select="normalize-space(*[local-name()='NomeAttachment'])"/>
+										<xsl:variable name="fmt" select="translate(normalize-space(*[local-name()='FormatoAttachment']),
+                            'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')"/>
+										<!-- spazi -> "_" -->
+										<xsl:variable name="nameNoSpaces" select="translate($rawName,' ','_')"/>
+										<!-- estensione -->
+										<xsl:choose>
+											<xsl:when test="contains($nameNoSpaces,'.')">
+												<xsl:value-of select="$nameNoSpaces"/>
+											</xsl:when>
+											<xsl:otherwise>
+												<xsl:value-of select="concat(
+              $nameNoSpaces,
+              '.',
+              translate($fmt,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')
+            )"/>
+											</xsl:otherwise>
+										</xsl:choose>
+									</xsl:attribute>
+								</xsl:if>
+								<!-- BASE64 -->
+								<xsl:value-of select="normalize-space(*[local-name()='Attachment'])"/>
+							</cbc:EmbeddedDocumentBinaryObject>
+						</cac:Attachment>
+					</xsl:if>
+					<xsl:if test="not(normalize-space(*[local-name()='Attachment']))">
+						<cac:Attachment/>
+					</xsl:if>
+				</cac:AdditionalDocumentReference>
+			</xsl:for-each>
 			<!-- Supplier -->
 			<cac:AccountingSupplierParty>
 				<xsl:if test="normalize-space($hdr/*[local-name()='SupplierCode']) != ''">
@@ -531,79 +611,7 @@
 						</cac:TaxCategory>
 					</cac:TaxSubtotal>
 				</xsl:for-each>
-			</cac:TaxTotal>
-			<!-- Allegati -->
-			<xsl:for-each select="$body/*[local-name()='Allegati']">
-				<cac:AdditionalDocumentReference>
-					<cbc:ID>
-						<xsl:choose>
-							<xsl:when test="normalize-space(*[local-name()='NomeAttachment'])">
-								<xsl:value-of select="normalize-space(*[local-name()='NomeAttachment'])"/>
-							</xsl:when>
-							<xsl:otherwise>Attachment</xsl:otherwise>
-						</xsl:choose>
-					</cbc:ID>
-					<xsl:if test="normalize-space(*[local-name()='FormatoAttachment'])">
-						<cbc:DocumentType>
-							<xsl:value-of select="normalize-space(*[local-name()='FormatoAttachment'])"/>
-						</cbc:DocumentType>
-					</xsl:if>
-					<xsl:if test="normalize-space(*[local-name()='DescrizioneAttachment'])">
-						<cbc:DocumentDescription>
-							<xsl:value-of select="normalize-space(*[local-name()='DescrizioneAttachment'])"/>
-						</cbc:DocumentDescription>
-					</xsl:if>
-					<xsl:if test="normalize-space(*[local-name()='Attachment'])">
-						<cac:Attachment>
-							<cbc:EmbeddedDocumentBinaryObject>
-								<!-- MIME -->
-								<xsl:attribute name="mimeCode">
-									<xsl:variable name="fmt" select="translate(normalize-space(*[local-name()='FormatoAttachment']),
-                          'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')"/>
-									<xsl:choose>
-										<xsl:when test="$fmt='PDF'">application/pdf</xsl:when>
-										<xsl:when test="$fmt='XML'">application/xml</xsl:when>
-										<xsl:when test="$fmt='TXT'">text/plain</xsl:when>
-										<xsl:when test="$fmt='CSV'">text/csv</xsl:when>
-										<xsl:when test="$fmt='ZIP'">application/zip</xsl:when>
-										<xsl:when test="$fmt='PNG'">image/png</xsl:when>
-										<xsl:when test="$fmt='JPG' or $fmt='JPEG'">image/jpeg</xsl:when>
-										<xsl:otherwise>application/octet-stream</xsl:otherwise>
-									</xsl:choose>
-								</xsl:attribute>
-								<!-- FILENAME normalizzato + estensione -->
-								<xsl:if test="normalize-space(*[local-name()='NomeAttachment'])">
-									<xsl:attribute name="filename">
-										<xsl:variable name="rawName" select="normalize-space(*[local-name()='NomeAttachment'])"/>
-										<xsl:variable name="fmt" select="translate(normalize-space(*[local-name()='FormatoAttachment']),
-                            'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ')"/>
-										<!-- spazi -> "_" -->
-										<xsl:variable name="nameNoSpaces" select="translate($rawName,' ','_')"/>
-										<!-- estensione -->
-										<xsl:choose>
-											<xsl:when test="contains($nameNoSpaces,'.')">
-												<xsl:value-of select="$nameNoSpaces"/>
-											</xsl:when>
-											<xsl:otherwise>
-												<xsl:value-of select="concat(
-              $nameNoSpaces,
-              '.',
-              translate($fmt,'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz')
-            )"/>
-											</xsl:otherwise>
-										</xsl:choose>
-									</xsl:attribute>
-								</xsl:if>
-								<!-- BASE64 -->
-								<xsl:value-of select="normalize-space(*[local-name()='Attachment'])"/>
-							</cbc:EmbeddedDocumentBinaryObject>
-						</cac:Attachment>
-					</xsl:if>
-					<xsl:if test="not(normalize-space(*[local-name()='Attachment']))">
-						<cac:Attachment/>
-					</xsl:if>
-				</cac:AdditionalDocumentReference>
-			</xsl:for-each>
+			</cac:TaxTotal>			
 			<!-- Payment -->
 			<xsl:for-each select="$body/*[local-name()='DatiPagamento']">
 				<cac:PaymentMeans>

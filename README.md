@@ -53,5 +53,29 @@ Current behavior in the XSLT:
 - Some mappings may require refinement based on your receiver and validator profile.
 - Always validate produced UBL XML with the same PEPPOL validator used in production.
 
+## Source File Name Traceability
+The transformation supports an optional external XSLT parameter `sourceFileName` that allows embedding the name of the source Italian e-invoice file into the output UBL document.
+
+When provided, it is written as a `cac:AdditionalDocumentReference` element with `cbc:DocumentType` = `SourceDocument`, placed before `cac:AccountingSupplierParty` in accordance with the UBL 2.1 schema sequence.
+
+**How to pass the parameter:**
+
+Saxon (command line):
+```
+-param:sourceFileName=IT01234567890_00001.xml
+```
+
+.NET `XslCompiledTransform` (C#):
+```csharp
+transform.Transform(input, new XsltArgumentList() {{ AddParam("sourceFileName", "", "IT01234567890_00001.xml"); }}, output);
+```
+
+Java (`javax.xml.transform`):
+```java
+transformer.setParameter("sourceFileName", "IT01234567890_00001.xml");
+```
+
+If the parameter is not passed (or is empty), the `cac:AdditionalDocumentReference` element for the source file is simply omitted.
+
 ## Note
 This README describes the purpose of the project; detailed mappings depend on business rules and the adopted PEPPOL validation constraints.
