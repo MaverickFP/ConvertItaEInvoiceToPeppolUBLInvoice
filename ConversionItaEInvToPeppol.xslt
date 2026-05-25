@@ -181,11 +181,15 @@
 							<xsl:otherwise>Attachment</xsl:otherwise>
 						</xsl:choose>
 					</cbc:ID>
-					<xsl:if test="normalize-space(*[local-name()='FormatoAttachment'])">
-						<cbc:DocumentType>
+					<cbc:DocumentType>
+						<xsl:choose>
+							<xsl:when test="normalize-space(*[local-name()='FormatoAttachment']) != ''">
 							<xsl:value-of select="normalize-space(*[local-name()='FormatoAttachment'])"/>
-						</cbc:DocumentType>
-					</xsl:if>
+							</xsl:when>
+							<xsl:otherwise>pdf</xsl:otherwise>
+						</xsl:choose>
+					</cbc:DocumentType>
+
 					<xsl:if test="normalize-space(*[local-name()='DescrizioneAttachment'])">
 						<cbc:DocumentDescription>
 							<xsl:value-of select="normalize-space(*[local-name()='DescrizioneAttachment'])"/>
