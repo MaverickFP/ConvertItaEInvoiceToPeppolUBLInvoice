@@ -295,7 +295,7 @@
 					</cac:PostalAddress>
 				</cac:Party>
 			</cac:AccountingSupplierParty>
-			<!-- Customer (con fallback CF e regola CompanyID=DED or DHO or DH2 or DH3) -->
+			<!-- Customer (con fallback CF e regola CompanyID=DED or DHO or DH2 or DH3 or SLI) -->
 			<cac:AccountingCustomerParty>
 				<cac:Party>
 					<xsl:variable name="cp" select="$hdr/*[local-name()='CessionarioCommittente']"/>
@@ -345,7 +345,7 @@
 							<xsl:value-of select="$cp/*[local-name()='DatiAnagrafici']/*[local-name()='Anagrafica']/*[local-name()='Denominazione']"/>
 						</cbc:Name>
 					</cac:PartyName>
-					<!-- Regola CompanyID=DED or DHO or DH2 or DH3 -->
+					<!-- Regola CompanyID=DED or DHO or DH2 or DH3 or SLI-->
 					<xsl:if test="normalize-space($customerID) = 'IT05994810488' or normalize-space($customerID_cf) = '05994810488'">
 						<cac:PartyLegalEntity>
 							<cbc:CompanyID>DED</cbc:CompanyID>
@@ -364,6 +364,11 @@
 					<xsl:if test="normalize-space($customerID) = 'IT06979710487' or normalize-space($customerID_cf) = '06979710487'">
 						<cac:PartyLegalEntity>
 							<cbc:CompanyID>DH3</cbc:CompanyID>
+						</cac:PartyLegalEntity>
+					</xsl:if>
+					<xsl:if test="normalize-space($customerID) = 'IT01119090924' or normalize-space($customerID_cf) = '01119090924'">
+						<cac:PartyLegalEntity>
+							<cbc:CompanyID>SLI</cbc:CompanyID>
 						</cac:PartyLegalEntity>
 					</xsl:if>
 					<cac:PostalAddress>
