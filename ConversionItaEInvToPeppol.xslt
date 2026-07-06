@@ -171,7 +171,21 @@
 				</cac:AdditionalDocumentReference>
 			</xsl:if>
 			<!-- Allegati -->
-			<xsl:for-each select="$body/*[local-name()='Allegati']">
+			<xsl:for-each select="$body/*[local-name()='Allegati']
+							[
+								not(
+								translate(normalize-space(*[local-name()='FormatoAttachment']),
+											'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+											'abcdefghijklmnopqrstuvwxyz') = 'p7m'
+								or
+								substring(
+									translate(normalize-space(*[local-name()='NomeAttachment']),
+											'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+											'abcdefghijklmnopqrstuvwxyz'),
+									string-length(normalize-space(*[local-name()='NomeAttachment'])) - 3
+								) = '.p7m'
+								)
+							]">
 				<cac:AdditionalDocumentReference>
 					<cbc:ID>
 						<xsl:choose>
