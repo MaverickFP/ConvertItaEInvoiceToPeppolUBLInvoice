@@ -404,50 +404,6 @@
 				</cac:Party>
 			</cac:AccountingCustomerParty>
 			<!-- Linee (InvoiceLine vs CreditNoteLine; InvoicedQuantity vs CreditedQuantity) -->
-			<!--
-			<xsl:for-each select="$body/*[local-name()='DatiBeniServizi']/*[local-name()='DettaglioLinee']">
-				<xsl:element name="{$lineName}">
-					<cbc:ID>
-						<xsl:value-of select="normalize-space(*[local-name()='NumeroLinea'])"/>
-					</cbc:ID>
-					<xsl:element name="{$qtyName}">
-						<xsl:attribute name="unitCode">C62</xsl:attribute>
-						<xsl:value-of select="normalize-space(*[local-name()='Quantita'])"/>
-					</xsl:element>
-					<cbc:LineExtensionAmount>
-						<xsl:attribute name="currencyID">
-							<xsl:value-of select="$cur"/>
-						</xsl:attribute>
-						<xsl:call-template name="fmt2">
-							<xsl:with-param name="n" select="*[local-name()='PrezzoTotale']"/>
-						</xsl:call-template>
-					</cbc:LineExtensionAmount>
-					<cac:Item>
-						<cbc:Description>
-							<xsl:value-of select="normalize-space(*[local-name()='Descrizione'])"/>
-						</cbc:Description>
-						<xsl:for-each select="*[local-name()='CodiceArticolo']/*[local-name()='CodiceValore']">
-							<cac:StandardItemIdentification>
-								<cbc:ID>
-									<xsl:value-of select="."/>
-								</cbc:ID>
-							</cac:StandardItemIdentification>
-						</xsl:for-each>
-					</cac:Item>
-					<cac:Price>
-						<cbc:PriceAmount>
-							<xsl:attribute name="currencyID">
-								<xsl:value-of select="$cur"/>
-							</xsl:attribute>
-							<xsl:call-template name="fmt8">
-								<xsl:with-param name="n" select="*[local-name()='PrezzoUnitario']"/>
-							</xsl:call-template>
-						</cbc:PriceAmount>
-					</cac:Price>
-				</xsl:element>
-			</xsl:for-each>
-			-->
-			<!-- Linee (InvoiceLine vs CreditNoteLine; InvoicedQuantity vs CreditedQuantity) -->
 			<xsl:for-each select="$body/*[local-name()='DatiBeniServizi']/*[local-name()='DettaglioLinee']
 			  [
 				not(
@@ -465,6 +421,13 @@
 						<!-- Opzione 2 (alternativa): rinumera in modo consecutivo -->
 						<!-- <xsl:value-of select="position()"/> -->
 					</cbc:ID>
+					
+					<xsl:if test="normalize-space(*[local-name()='RiferimentoAmministrazione']) != ''">
+    					<cbc:AccountingCost>
+							<xsl:value-of select="normalize-space(*[local-name()='RiferimentoAmministrazione'])"/>
+						</cbc:AccountingCost>
+  					</xsl:if>
+
 					<xsl:element name="{$qtyName}">
 						<xsl:attribute name="unitCode">C62</xsl:attribute>
 						<xsl:choose>
@@ -500,6 +463,25 @@
 						<cbc:Description>
 							<xsl:value-of select="normalize-space(*[local-name()='Descrizione'])"/>
 						</cbc:Description>
+
+						<xsl:for-each select="*[local-name()='AltriDatiGestionali']">
+							<xsl:if test="normalize-space(*[local-name()='RiferimentoTesto']) != ''">
+								<cac:AdditionalItemProperty>
+								<cbc:Name>
+									<xsl:choose>
+									<xsl:when test="normalize-space(*[local-name()='TipoDato']) != ''">
+										<xsl:value-of select="normalize-space(*[local-name()='TipoDato'])"/>
+									</xsl:when>
+									<xsl:otherwise>AdditionalData</xsl:otherwise>
+									</xsl:choose>
+								</cbc:Name>
+								<cbc:Value>
+									<xsl:value-of select="normalize-space(*[local-name()='RiferimentoTesto'])"/>
+								</cbc:Value>
+								</cac:AdditionalItemProperty>
+							</xsl:if>
+						</xsl:for-each>
+
 						<xsl:for-each select="*[local-name()='CodiceArticolo']/*[local-name()='CodiceValore']">
 							<cac:StandardItemIdentification>
 								<cbc:ID>
