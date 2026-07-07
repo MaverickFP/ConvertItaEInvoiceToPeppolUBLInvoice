@@ -40,16 +40,6 @@
 		<xsl:variable name="bolloAmountStr" select="normalize-space($datiBollo/*[local-name()='ImportoBollo'])"/>
 		<!-- Flag bollo -->
 		<xsl:variable name="hasBollo" select="string-length($bolloAmountStr) &gt; 0"/>
-		<!-- Importo bollo numerico -->
-		<xsl:variable name="bolloAmountNum" select="number($bolloAmountStr)"/>
-		<xsl:variable name="whtBase" select="sum($body/*[local-name()='DatiBeniServizi']/*[local-name()='DettaglioLinee'][normalize-space(*[local-name()='Ritenuta'])='SI']/*[local-name()='PrezzoTotale'])"/>
-		<!-- Dati Ritenuta (di solito 0..1) -->
-		<xsl:variable name="datiRitenuta" select="/*[local-name()='FatturaElettronica']
-            /*[local-name()='FatturaElettronicaBody']
-            /*[local-name()='DatiGenerali']
-            /*[local-name()='DatiGeneraliDocumento']
-            /*[local-name()='DatiRitenuta']"/>
-		<xsl:variable name="whtAmount" select="sum($datiRitenuta[normalize-space(*[local-name()='ImportoRitenuta'])!='']/*[local-name()='ImportoRitenuta'])"/>
 		<!-- Dati Cassa Previdenziale (0..n) -->
 		<xsl:variable name="datiCassa" select="/*[local-name()='FatturaElettronica']
             /*[local-name()='FatturaElettronicaBody']
@@ -59,6 +49,28 @@
 		<xsl:variable name="payableFromFPA" select="number($body/*[local-name()='DatiPagamento']
 							 /*[local-name()='DettaglioPagamento']
 							 /*[local-name()='ImportoPagamento'])"/>
+		<!-- Importo bollo numerico -->
+		<xsl:variable name="bolloAmountNum" select="number($bolloAmountStr)"/>
+		<xsl:variable name="whtBase" select="											
+											sum(
+												$body/*[local-name()='DatiBeniServizi']/*[local-name()='DettaglioLinee']
+												[normalize-space(*[local-name()='Ritenuta'])='SI']
+												/*[local-name()='PrezzoTotale']
+											)
+											+
+											sum(
+												$doc/*[local-name()='DatiCassaPrevidenziale']
+												[normalize-space(*[local-name()='Ritenuta'])='SI']
+												/*[local-name()='ImportoContributoCassa']
+											)
+											"/>
+		<!-- Dati Ritenuta (di solito 0..1) -->
+		<xsl:variable name="datiRitenuta" select="/*[local-name()='FatturaElettronica']
+            /*[local-name()='FatturaElettronicaBody']
+            /*[local-name()='DatiGenerali']
+            /*[local-name()='DatiGeneraliDocumento']
+            /*[local-name()='DatiRitenuta']"/>
+		<xsl:variable name="whtAmount" select="sum($datiRitenuta[normalize-space(*[local-name()='ImportoRitenuta'])!='']/*[local-name()='ImportoRitenuta'])"/>
 		<!-- Estrai ModalitaPagamento e IBAN (namespace-safe con local-name()) -->
 		<xsl:variable name="mp" select="$body/*[local-name()='DatiPagamento']/*[local-name()='DettaglioPagamento']/*[local-name()='ModalitaPagamento']"/>
 		<xsl:variable name="iban" select="normalize-space($body/*[local-name()='DatiPagamento']/*[local-name()='DettaglioPagamento']/*[local-name()='IBAN'])"/>
@@ -129,6 +141,38 @@
 					</cbc:InvoiceTypeCode>
 				</xsl:otherwise>
 			</xsl:choose>
+			
+			<xsl:if test="count($datiRitenuta[normalize-space(*[local-name()='ImportoRitenuta'])!='']) &gt; 0">
+				<cbc:Note>
+					<xsl:text>Ritenuta d'acconto: TipoRitenuta=</xsl:text>
+					<xsl:value-of select="normalize-space($datiRitenuta[1]/*[local-name()='TipoRitenuta'])"/>
+					<xsl:text>; CausalePagamento=</xsl:text>
+					<xsl:value-of select="normalize-space($datiRitenuta[1]/*[local-name()='CausalePagamento'])"/>
+					<xsl:text>; Base ritenuta=</xsl:text>
+					<xsl:call-template name="fmt2">
+					<xsl:with-param name="n" select="$whtBase"/>
+					</xsl:call-template>
+					<xsl:text> </xsl:text>
+					<xsl:value-of select="$cur"/>
+					<xsl:text>; Aliquota=</xsl:text>
+					<xsl:value-of select="format-number(number($datiRitenuta[1]/*[local-name()='AliquotaRitenuta']),'0.00')"/>
+					<xsl:text>%; Importo ritenuta=</xsl:text>
+					<xsl:call-template name="fmt2">
+					<xsl:with-param name="n" select="$whtAmount"/>
+					</xsl:call-template>
+					<xsl:text> </xsl:text>
+					<xsl:value-of select="$cur"/>
+					<xsl:text>. Importo netto da pagare secondo FatturaPA=</xsl:text>
+					<xsl:call-template name="fmt2">
+					<xsl:with-param name="n" select="$payableFromFPA"/>
+					</xsl:call-template>
+					<xsl:text> </xsl:text>
+					<xsl:value-of select="$cur"/>
+					<xsl:text>.</xsl:text>
+				</cbc:Note>
+			</xsl:if>
+
+
 			<cbc:DocumentCurrencyCode>
 				<xsl:value-of select="$cur"/>
 			</cbc:DocumentCurrencyCode>
@@ -678,9 +722,13 @@
 							<xsl:with-param name="n" select="$whtAmount"/>
 						</xsl:call-template>
 					</cbc:TaxAmount>
+					<xsl:variable name="whtType" select="normalize-space($datiRitenuta[1]/*[local-name()='TipoRitenuta'])"/>
+					<xsl:variable name="whtReason" select="normalize-space($datiRitenuta[1]/*[local-name()='CausalePagamento'])"/>
 					<cac:TaxSubtotal>
-						<cbc:TaxableAmount currencyID="{$cur}">
-							<xsl:value-of select="format-number(number($whtBase),'0.00')"/>
+						<cbc:TaxableAmount currencyID="{$cur}">							
+							<xsl:call-template name="fmt2">
+								<xsl:with-param name="n" select="$whtBase"/>
+							</xsl:call-template>
 						</cbc:TaxableAmount>
 						<cbc:TaxAmount currencyID="{$cur}">
 							<xsl:call-template name="fmt2">
@@ -693,6 +741,21 @@
 						<!-- tassonomia "tecnica" per ritenuta -->
 						<cac:TaxCategory>
 							<cbc:ID>WHT</cbc:ID>
+							<xsl:if test="$whtType != '' or $whtReason != ''">
+								<cbc:TaxExemptionReason>
+									<xsl:if test="$whtType != ''">
+										<xsl:text>TipoRitenuta:</xsl:text>
+										<xsl:value-of select="$whtType"/>
+									</xsl:if>
+									<xsl:if test="$whtType != '' and $whtReason != ''">
+										<xsl:text>; </xsl:text>
+									</xsl:if>
+									<xsl:if test="$whtReason != ''">
+										<xsl:text>CausalePagamento:</xsl:text>
+										<xsl:value-of select="$whtReason"/>
+									</xsl:if>
+								</cbc:TaxExemptionReason>
+							</xsl:if>
 							<cac:TaxScheme>
 								<cbc:ID>WHT</cbc:ID>
 							</cac:TaxScheme>
@@ -723,36 +786,80 @@
 				</cac:AllowanceCharge>
 			</xsl:if>
 			<!-- Cassa Previdenziale -> AllowanceCharge (imponibile IVA) -->
-			<xsl:if test="$datiCassa and normalize-space($datiCassa/*[local-name()='ImportoContributoCassa']) != ''">
+			<xsl:for-each select="$datiCassa[normalize-space(*[local-name()='ImportoContributoCassa']) != '']">
 				<cac:AllowanceCharge>
 					<cbc:ChargeIndicator>true</cbc:ChargeIndicator>
 					<cbc:AllowanceChargeReason>
-						<xsl:text>Contributo previdenziale </xsl:text>
-						<xsl:value-of select="$datiCassa/*[local-name()='TipoCassa']"/>
-						<xsl:text> </xsl:text>
-						<xsl:value-of select="format-number(number($datiCassa/*[local-name()='AlCassa']),'0.00')"/>
-						<xsl:text>%</xsl:text>
+					<xsl:text>Contributo previdenziale </xsl:text>
+					<xsl:value-of select="normalize-space(*[local-name()='TipoCassa'])"/>
+					<xsl:text> </xsl:text>
+					<xsl:value-of select="format-number(number(*[local-name()='AlCassa']),'0.00')"/>
+					<xsl:text>%</xsl:text>
 					</cbc:AllowanceChargeReason>
 					<cbc:Amount currencyID="{$cur}">
-						<xsl:call-template name="fmt2">
-							<xsl:with-param name="n" select="$datiCassa/*[local-name()='ImportoContributoCassa']"/>
-						</xsl:call-template>
+					<xsl:call-template name="fmt2">
+						<xsl:with-param name="n" select="*[local-name()='ImportoContributoCassa']"/>
+					</xsl:call-template>
 					</cbc:Amount>
-					<!-- IVA sulla cassa -->
 					<cac:TaxCategory>
-						<cbc:ID>S</cbc:ID>
-						<cbc:Percent>
-							<xsl:call-template name="fmt2">
-								<xsl:with-param name="n" select="$datiCassa/*[local-name()='AliquotaIVA']"/>
-							</xsl:call-template>
-						</cbc:Percent>
-						<cac:TaxScheme>
-							<cbc:ID>VAT</cbc:ID>
-						</cac:TaxScheme>
+					<cbc:ID>
+						<xsl:call-template name="mapNaturaToTaxCategoryID">
+						<xsl:with-param name="natura" select="normalize-space(*[local-name()='Natura'])"/>
+						</xsl:call-template>
+					</cbc:ID>
+					<cbc:Percent>
+						<xsl:call-template name="fmt2">
+						<xsl:with-param name="n" select="*[local-name()='AliquotaIVA']"/>
+						</xsl:call-template>
+					</cbc:Percent>
+					<cac:TaxScheme>
+						<cbc:ID>VAT</cbc:ID>
+					</cac:TaxScheme>
 					</cac:TaxCategory>
 				</cac:AllowanceCharge>
-			</xsl:if>
+			</xsl:for-each>
 			<!-- Totali -->
+			<xsl:variable name="totalDocumentCharges" select="
+								sum(
+									$doc/*[local-name()='DatiCassaPrevidenziale']
+									[normalize-space(*[local-name()='ImportoContributoCassa']) != '']
+									/*[local-name()='ImportoContributoCassa']
+								)
+								+
+								sum(
+									$datiBollo
+									[normalize-space(*[local-name()='ImportoBollo']) != '']
+									/*[local-name()='ImportoBollo']
+								)
+								"/>
+
+			<xsl:variable name="taxExclusiveAmount" select="
+			sum(
+				$body/*[local-name()='DatiBeniServizi']/*[local-name()='DatiRiepilogo']
+				[
+				not(
+					(
+					$hasBollo
+					and normalize-space(*[local-name()='Natura']) = 'N1'
+					and number(normalize-space(*[local-name()='AliquotaIVA'])) = 0
+					and round(number(normalize-space(*[local-name()='ImponibileImporto'])) * 100)
+						= round(number($bolloAmountNum) * 100)
+					)
+					or
+					(
+					not($hasBollo)
+					and contains(
+						translate(normalize-space(*[local-name()='RiferimentoNormativo']),
+								'ABCDEFGHIJKLMNOPQRSTUVWXYZÀÈÉÌÒÙ',
+								'abcdefghijklmnopqrstuvwxyzàèéìòù'),
+						'bollo'
+					)
+					)
+				)
+				]
+				/*[local-name()='ImponibileImporto']
+			)
+			"/>
 			<cac:LegalMonetaryTotal>
 				<xsl:variable name="righeValide" select="$body/*[local-name()='DatiBeniServizi']
                 /*[local-name()='DettaglioLinee']"/>
@@ -762,22 +869,39 @@
 					</xsl:attribute>
 					<xsl:call-template name="fmt2">
 						<xsl:with-param name="n" select="
-        sum(
-          $righeValide
-          [
-            not(
-              $hasBollo
-              and normalize-space(*[local-name()='Natura']) = 'N1'
-              and number(normalize-space(*[local-name()='AliquotaIVA'])) = 0
-              and round(number(*[local-name()='PrezzoTotale']) * 100)
-                  = round(number($bolloAmountNum) * 100)
-            )
-          ]
-          /*[local-name()='PrezzoTotale']
-        )
-      "/>
+														sum(
+														$righeValide
+														[
+															not(
+															$hasBollo
+															and normalize-space(*[local-name()='Natura']) = 'N1'
+															and number(normalize-space(*[local-name()='AliquotaIVA'])) = 0
+															and round(number(*[local-name()='PrezzoTotale']) * 100)
+																= round(number($bolloAmountNum) * 100)
+															)
+														]
+														/*[local-name()='PrezzoTotale']
+														)
+													"/>
 					</xsl:call-template>
 				</cbc:LineExtensionAmount>
+				<cbc:TaxExclusiveAmount>
+					<xsl:attribute name="currencyID">
+						<xsl:value-of select="$cur"/>
+					</xsl:attribute>
+					<xsl:call-template name="fmt2">
+						<xsl:with-param name="n" select="$taxExclusiveAmount"/>
+					</xsl:call-template>
+				</cbc:TaxExclusiveAmount>
+				<cbc:TaxInclusiveAmount>
+					<xsl:attribute name="currencyID">
+						<xsl:value-of select="$cur"/>
+					</xsl:attribute>
+					<xsl:call-template name="fmt2">
+						<xsl:with-param name="n" select="$doc/*[local-name()='ImportoTotaleDocumento']"/>
+					</xsl:call-template>
+				</cbc:TaxInclusiveAmount>
+				<!--
 				<xsl:if test="$datiBollo and normalize-space($datiBollo/*[local-name()='ImportoBollo']) != ''">
 					<cbc:ChargeTotalAmount>
 						<xsl:attribute name="currencyID">
@@ -788,14 +912,17 @@
 						</xsl:call-template>
 					</cbc:ChargeTotalAmount>
 				</xsl:if>
-				<cbc:TaxInclusiveAmount>
-					<xsl:attribute name="currencyID">
+				-->
+				<xsl:if test="$totalDocumentCharges &gt; 0">
+					<cbc:ChargeTotalAmount>
+						<xsl:attribute name="currencyID">
 						<xsl:value-of select="$cur"/>
-					</xsl:attribute>
-					<xsl:call-template name="fmt2">
-						<xsl:with-param name="n" select="$doc/*[local-name()='ImportoTotaleDocumento']"/>
-					</xsl:call-template>
-				</cbc:TaxInclusiveAmount>
+						</xsl:attribute>
+						<xsl:call-template name="fmt2">
+						<xsl:with-param name="n" select="$totalDocumentCharges"/>
+						</xsl:call-template>
+					</cbc:ChargeTotalAmount>
+				</xsl:if>
 				<cbc:PayableAmount>
 					<xsl:attribute name="currencyID">
 						<xsl:value-of select="$cur"/>
